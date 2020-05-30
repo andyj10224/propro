@@ -204,13 +204,12 @@ class OBAminoAcid():
 
     @staticmethod
     def SideChainGrowerIterative(protein, mol, cmol):
-        for mol_atom in ob.OBMolAtomIter(protein):
-            if OBAminoAcid.IsInMolecule(mol_atom, cmol):
-                count = OBAminoAcid.SideChainGrowerHelper(mol_atom, mol, cmol)
-                if count > 0:
-                    for mol_atom2 in ob.OBMolAtomIter(protein):
-                        if OBAminoAcid.IsInMolecule(mol_atom2, cmol):
-                            OBAminoAcid.SideChainGrowerHelper(mol_atom2, mol, cmol)
+        count = 1
+        while count > 0:
+            count = 0
+            for mol_atom in ob.OBMolAtomIter(protein):
+                if OBAminoAcid.IsInMolecule(mol_atom, cmol):
+                    count += OBAminoAcid.SideChainGrowerHelper(mol_atom, mol, cmol)
 
     @staticmethod
     def BondOrderSum(atom):
@@ -395,3 +394,96 @@ class OBAminoAcid():
             self.name = "ARG"
         elif countTuple == (5, 4, 2, 0, 0) or countTuple == (6, 4, 2, 0, 0):
             self.name = "HIS"
+
+class OBLigand():
+
+    @staticmethod
+    def Equals(atom1, atom2):
+        return (atom1.GetX() == atom2.GetX()) and (atom1.GetY() == atom2.GetY()) and (atom1.GetZ() == atom2.GetZ()) and (atom1.GetAtomicNum() == atom2.GetAtomicNum())
+
+    @staticmethod
+    def IsInMolecule(atom, molecule):
+        for mol_atom in ob.OBMolAtomIter(molecule):
+            if OBAminoAcid.Equals(mol_atom, atom):
+                return True
+        return False
+
+    @staticmethod
+    def IsConnectedTo(atom, mol, big_mol):
+
+        if OBLigand.IsInMolecule(atom, mol):
+            return False
+
+        for mol_atom in ob.OBMolAtomIter(big_mol):
+            if OBLigand.IsInMolecule(mol_atom, mol):
+                for n_atom in ob.OBAtomAtomIter(mol_atom):
+                    if OBLigand.Equals(n_atom, atom):
+                        return True
+
+        return False
+
+    @staticmethod
+    def MolGrowerHelper(atom, mol):
+        count = 0
+        for n_atom in ob.OBAtomAtomIter(atom):
+            #print(atom.GetAtomicNum(), n_atom.GetAtomicNum(), OBLigand.IsInMolecule(n_atom, mol))
+            if not OBLigand.IsInMolecule(n_atom, mol):
+                mol.AddAtom(n_atom)
+                count += 1
+
+        return count
+
+    @staticmethod
+    def MolGrowerIterative(mol, big_mol):
+        atomArr = []
+        count = 1
+        while count > 0:
+            count = 0
+            for mol_atom in ob.OBMolAtomIter(big_mol):
+                if OBLigand.IsInMolecule(mol_atom, mol):
+                    count += OBLigand.MolGrowerHelper(mol_atom, mol)
+
+    @staticmethod
+    def SplitUp(mol):
+        molArr = []
+        addNew = True
+
+        for atom in ob.OBMolAtomIter(mol):
+            for i in range(len(molArr)):
+                if OBLigand.IsInMolecule(atom, molArr[i]):
+                    addNew = False
+
+            if addNew:
+                molArr.append(ob.OBMol())
+                molArr[-1].AddAtom(atom)
+                OBLigand.MolGrowerIterative(molArr[-1], mol)
+
+            addNew = True
+
+        return molArr
+
+    @staticmethod
+    def IsProtein(mol, big_mol):
+
+        for atom1 in ob.OBMolAtomIter(big_mol):
+            if OBLigand.IsInMolecule(atom1, mol):
+                if atom1.GetAtomicNum() == 7:
+                    for atom2 in ob.OBAtomAtomIter(atom1):
+                        if atom2.GetAtomicNum() == 6:
+                            for atom3 in ob.OBAtomAtomIter(atom2):
+                                if atom3.GetAtomicNum() == 6:
+                                    for atom4 in ob.OBAtomAtomIter(atom3):
+                                        if atom4.GetAtomicNum() == 8 and atom3.GetBond(atom4).GetBondOrder() == 2:
+                                            return True
+        return False
+
+
+    def __init__(self, whole_mol):
+        self.whole_mol = whole_mol
+        self.ligand_mols = []
+
+        molArr = OBLigand.SplitUp(self.whole_mol)
+
+        for i in range(len(molArr)):
+            if not OBLigand.IsProtein(molArr[i], self.whole_mol):
+                self.ligand_mols.append(molArr[i])
