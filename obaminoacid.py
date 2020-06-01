@@ -127,20 +127,28 @@ class OBProtein():
             cTermIsCapped = False
 
             for atom1 in ob.OBAtomAtomIter(nTerm):
-                if atom1.GetAtomicNum() == 6:
+                if OBAminoAcid.Equals(nTerm, atom1):
+                    continue
+                elif atom1.GetAtomicNum() == 6:
                     for atom2 in ob.OBAtomAtomIter(atom1):
-                        if atom2.GetAtomicNum() == 8 and atom1.GetBond(atom2).GetBondOrder() == 2:
+                        if OBAminoAcid.Equals(nTerm, atom2):
+                            continue
+                        elif atom2.GetAtomicNum() == 8 and atom1.GetBond(atom2).GetBondOrder() == 2:
                             self.residues[i].resMol.AddAtom(atom1)
                             self.residues[i].resMol.AddAtom(atom2)
                             self.residues[i].NTermCap.AddAtom(atom1)
                             self.residues[i].NTermCap.AddAtom(atom2)
-                            for atom3 in ob.OBAtomAtomIter(atom1):
-                                if atom3.GetAtomicNum() == 6:
-                                    self.residues[i].resMol.AddAtom(atom3)
-                                    self.residues[i].NTermCap.AddAtom(atom3)
-                                    self.residues[i].resMol = OBProtein.Hydrogenate(atom3, atom1, self.residues[i].resMol)
-                                    self.residues[i].NTermCap = OBProtein.Hydrogenate(atom3, atom1, self.residues[i].NTermCap)
-                                    nTermIsCapped = True
+                            a1 = atom1
+                            nTermIsCapped = True
+
+            if nTermIsCapped:
+                for atom3 in ob.OBAtomAtomIter(a1):
+                    if atom3.GetAtomicNum() == 6:
+                        self.residues[i].resMol.AddAtom(atom3)
+                        self.residues[i].NTermCap.AddAtom(atom3)
+                        self.residues[i].resMol = OBProtein.Hydrogenate(atom3, atom1, self.residues[i].resMol)
+                        self.residues[i].NTermCap = OBProtein.Hydrogenate(atom3, atom1, self.residues[i].NTermCap)
+                        break
 
             if not nTermIsCapped:
                 for atom in ob.OBAtomAtomIter(nTerm):
@@ -151,8 +159,7 @@ class OBProtein():
                 if atom1.GetAtomicNum() == 7:
                     for atom2 in ob.OBAtomAtomIter(atom1):
                         if not OBProtein.Equals(cTerm, atom2):
-                            self.residues[i].resMol.AddAtom(atom1)
-                            self.residues[i].CTermCap.AddAtom(atom1)
+                            a1 = atom1
                             self.residues[i].resMol.AddAtom(atom2)
                             self.residues[i].CTermCap.AddAtom(atom2)
                             if atom2.GetAtomicNum() == 6:
@@ -160,13 +167,14 @@ class OBProtein():
                                 self.residues[i].CTermCap = OBProtein.Hydrogenate(atom2, atom1, self.residues[i].CTermCap)
                                 cTermIsCapped = True
 
+            if cTermIsCapped:
+                self.residues[i].resMol.AddAtom(a1)
+                self.residues[i].CTermCap.AddAtom(a1)
+
             if not cTermIsCapped:
                 for atom in ob.OBAtomAtomIter(cTerm):
                     if atom.GetAtomicNum() == 8 and atom.GetBond(cTerm).GetBondOrder() == 1:
                         self.residues[i].resMol.AddAtom(atom)
-
-            #self.residues[i].resMol.ConnectTheDots()
-            #self.residues[i].resMol.PerceiveBondOrders()
 
 class OBAminoAcid():
 
@@ -299,9 +307,6 @@ class OBAminoAcid():
 
         OBAminoAcid.SideChainGrowerIterative(self.protein.mol, self.resMol, self.sideChain)
 
-        #self.resMol.ConnectTheDots()
-        #self.resMol.PerceiveBondOrders()
-
         hasDisulfide = False
 
         for atom in ob.OBMolAtomIter(self.protein.mol):
@@ -318,10 +323,6 @@ class OBAminoAcid():
                         if n_atom.GetAtomicNum() == 6:
                             self.resMol = OBAminoAcid.SulfurHydrogenator(atom, n_atom, self.resMol)
                             self.sideChain = OBAminoAcid.SulfurHydrogenator(atom, n_atom, self.sideChain)
-
-
-        #self.resMol.ConnectTheDots()
-        #self.resMol.PerceiveBondOrders()
 
         #Set the Residue Name of the Amino Acid
 
