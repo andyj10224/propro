@@ -1,0 +1,21 @@
+memory 55 GB
+
+molecule mol {
+#RESIDUE_CHARGE
+#RESIDUE_COORDS
+--
+#LIGAND_CHARGE
+#LIGAND_COORDS
+symmetry c1
+no_reorient
+no_com
+}
+
+set {
+basis         jun-cc-pvdz
+scf_type df
+guess sad
+freeze_core true
+}
+
+energy('fisapt0')
