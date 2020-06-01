@@ -26,17 +26,19 @@ class OBProtein():
         Uy = mainAtom.GetY() - carbon.GetY()
         Uz = mainAtom.GetZ() - carbon.GetZ()
 
-        U = np.array([Ux, Uy, Uz])
-
-        V = np.array([Uy*Uz, -2*Ux*Uz, Ux*Uy])
+        U = np.array([Ux, Uy, Uz], dtype=float)
 
         U = U/(np.linalg.norm(U))
 
+        V = np.array([U[1]*U[2], -2*U[0]*U[2], U[0]*U[1]], dtype=float)
+
         V = V/(np.linalg.norm(V))
 
-        ang1 = math.radians(70.5)
+        ang1 = math.radians(19.5)
 
-        H1 = -U*math.cos(ang1) + V*math.sin(ang1)
+        H1 = -U*math.sin(ang1) + V*math.cos(ang1)
+
+        H1 = H1/np.linalg.norm(H1)
 
         h1 = ob.OBAtom()
         h1.SetAtomicNum(1)
@@ -56,6 +58,8 @@ class OBProtein():
         ang2 = math.radians(54.7)
 
         H2 = Z*math.cos(ang2) + Y*math.sin(ang2)
+
+        H2 = H2/np.linalg.norm(H2)
 
         h2 = ob.OBAtom()
         h2.SetAtomicNum(1)
@@ -127,13 +131,9 @@ class OBProtein():
             cTermIsCapped = False
 
             for atom1 in ob.OBAtomAtomIter(nTerm):
-                if OBAminoAcid.Equals(nTerm, atom1):
-                    continue
-                elif atom1.GetAtomicNum() == 6:
+                if atom1.GetAtomicNum() == 6:
                     for atom2 in ob.OBAtomAtomIter(atom1):
-                        if OBAminoAcid.Equals(nTerm, atom2):
-                            continue
-                        elif atom2.GetAtomicNum() == 8 and atom1.GetBond(atom2).GetBondOrder() == 2:
+                        if atom2.GetAtomicNum() == 8 and atom1.GetBond(atom2).GetBondOrder() == 2:
                             self.residues[i].resMol.AddAtom(atom1)
                             self.residues[i].resMol.AddAtom(atom2)
                             self.residues[i].NTermCap.AddAtom(atom1)
@@ -142,13 +142,15 @@ class OBProtein():
                             nTermIsCapped = True
 
             if nTermIsCapped:
-                for atom3 in ob.OBAtomAtomIter(a1):
-                    if atom3.GetAtomicNum() == 6:
-                        self.residues[i].resMol.AddAtom(atom3)
-                        self.residues[i].NTermCap.AddAtom(atom3)
-                        self.residues[i].resMol = OBProtein.Hydrogenate(atom3, atom1, self.residues[i].resMol)
-                        self.residues[i].NTermCap = OBProtein.Hydrogenate(atom3, atom1, self.residues[i].NTermCap)
-                        break
+                for atom1 in ob.OBAtomAtomIter(nTerm):
+                    if OBAminoAcid.Equals(atom1, a1):
+                        for atom3 in ob.OBAtomAtomIter(atom1):
+                            if atom3.GetAtomicNum() == 6:
+                                self.residues[i].resMol.AddAtom(atom3)
+                                self.residues[i].NTermCap.AddAtom(atom3)
+                                self.residues[i].resMol = OBProtein.Hydrogenate(atom3, atom1, self.residues[i].resMol)
+                                self.residues[i].NTermCap = OBProtein.Hydrogenate(atom3, atom1, self.residues[i].NTermCap)
+                                break
 
             if not nTermIsCapped:
                 for atom in ob.OBAtomAtomIter(nTerm):
@@ -355,6 +357,152 @@ class OBAminoAcid():
         elif countTuple == (9, 4, 0, 0, 0):
             carbonCount = 0
             for atom in ob.OBAtomAtomIter(self.AlphaCarbon):
+                if OBAminoAcid.IsInMolecule(atom, self.sideChain):
+                    for n_atom in ob.OBAtomAtomIter(atom):
+                        if n_atom.GetAtomicNum() == 6:
+                            carbonCount += 1
+
+            if carbonCount == 2:
+                self.name = "LEU"
+            elif carbonCount == 3:
+                self.name = "ILE"
+
+        elif countTuple == (7, 3, 0, 0, 1):
+            self.name = "MET"
+        elif countTuple == (7, 7, 0, 0, 0):
+            self.name = "PHE"
+        elif countTuple == (8, 9, 1, 0, 0):
+            self.name = "TRP"
+        elif countTuple == (6, 3, 0, 0, 0):
+            self.name = "PRO"
+        elif countTuple == (3, 1, 0, 1, 0):
+            self.name = "SER"
+        elif countTuple == (5, 2, 0, 1, 0):
+            self.name = "THR"
+        elif countTuple == (7, 7, 0, 1, 0):
+            self.name = "TYR"
+        elif countTuple == (3, 1, 0, 0, 1):
+            self.name = "CYS"
+        elif countTuple == (2, 2, 0, 2, 0):
+            self.name = "ASP"
+        elif countTuple == (11, 4, 1, 0, 0):
+            self.name = "LYS"
+        elif countTuple == (4, 2, 1, 1, 0):
+            self.name = "ASN"
+        elif countTuple == (6, 3, 1, 1, 0):
+            self.name = "GLN"
+        elif countTuple == (4, 3, 0, 2, 0):
+            self.name = "GLU"
+        elif countTuple == (11, 4, 3, 0, 0):
+            self.name = "ARG"
+        elif countTuple == (5, 4, 2, 0, 0) or countTuple == (6, 4, 2, 0, 0):
+            self.name = "HIS"
+
+class OBAminoAcidParser():
+
+    @staticmethod
+    def IsConnectedTo(atom1, atom2):
+        for atom in ob.OBAtomAtomIter(atom1):
+            if OBAminoAcid.Equals(atom, atom2):
+                return True
+
+        return False
+
+    def find_termini(self):
+        for atom1 in ob.OBMolAtomIter(self.mol):
+            if atom1.GetAtomicNum() == 7:
+                for atom2 in ob.OBAtomAtomIter(atom1):
+                    if atom2.GetAtomicNum() == 6:
+                        for atom3 in ob.OBAtomAtomIter(atom2):
+                            if atom3.GetAtomicNum() == 6:
+                                for atom4 in ob.OBAtomAtomIter(atom3):
+                                    if atom4.GetAtomicNum() == 8 and atom3.GetBond(atom4).GetBondOrder() == 2:
+                                        self.NTerminus = atom1
+                                        self.CTerminus = atom3
+                                        return
+
+    def find_N_cap(self):
+        a1 = ob.OBAtom()
+        for atom in ob.OBAtomAtomIter(self.NTerminus):
+            if atom.GetAtomicNum() == 6:
+                for n_atom in ob.OBAtomAtomIter(atom):
+                    if n_atom.GetAtomicNum() == 8 and atom.GetBond(n_atom).GetBondOrder() == 2:
+                        self.NTermCap.AddAtom(atom)
+                        self.NTermCap.AddAtom(n_atom)
+                        a1 = atom
+
+        for atom in ob.OBAtomAtomIter(self.NTerminus):
+            if OBAminoAcid.Equals(atom, a1):
+                for atom1 in ob.OBAtomAtomIter(atom):
+                    if atom1.GetAtomicNum() == 6:
+                        self.NTermCap.AddAtom(atom1)
+                        for n_atom1 in ob.OBAtomAtomIter(atom1):
+                            if not OBAminoAcid.Equals(n_atom1, atom):
+                                self.NTermCap.AddAtom(n_atom1)
+
+    def find_C_cap(self):
+        for atom in ob.OBAtomAtomIter(self.CTerminus):
+            if atom.GetAtomicNum() == 7:
+                self.CTermCap.AddAtom(atom)
+                for n_atom in ob.OBAtomAtomIter(atom):
+                    if not OBAminoAcid.Equals(self.CTerminus, n_atom):
+                        self.CTermCap.AddAtom(n_atom)
+                        for n_atom2 in ob.OBAtomAtomIter(n_atom):
+                            if n_atom2.GetAtomicNum() == 1:
+                                self.CTermCap.AddAtom(n_atom2)
+
+    def find_alpha_carbon(self):
+        for atomC in ob.OBAtomAtomIter(self.CTerminus):
+            for atomN in ob.OBAtomAtomIter(self.NTerminus):
+                if OBAminoAcid.Equals(atomN, atomC):
+                    self.AlphaCarbon = atomN
+                    return
+
+    def find_alpha_hydrogen(self):
+        for atom in ob.OBAtomAtomIter(self.AlphaCarbon):
+            if atom.GetAtomicNum() == 1:
+                self.AlphaHydrogen = atom
+                return
+
+
+    def find_side_chain(self):
+        for atom in ob.OBMolAtomIter(self.mol):
+            if not OBAminoAcid.Equals(atom, self.NTerminus) and not OBAminoAcid.Equals(atom, self.CTerminus):
+                if not OBAminoAcid.IsInMolecule(atom, self.NTermCap) and not OBAminoAcid.IsInMolecule(atom, self.CTermCap):
+                    if not OBAminoAcidParser.IsConnectedTo(atom, self.NTerminus) and not OBAminoAcidParser.IsConnectedTo(atom, self.CTerminus):
+                        if not OBAminoAcid.Equals(atom, self.AlphaCarbon) and not OBAminoAcid.Equals(atom, self.AlphaHydrogen):
+                            self.SideChain.AddAtom(atom)
+
+    def get_residue_name(self):
+        countH = 0
+        countC = 0
+        countN = 0
+        countO = 0
+        countS = 0
+
+        for atom in ob.OBMolAtomIter(self.SideChain):
+            if atom.GetAtomicNum() == 1:
+                countH += 1
+            elif atom.GetAtomicNum() == 6:
+                countC += 1
+            elif atom.GetAtomicNum() == 7:
+                countN += 1
+            elif atom.GetAtomicNum() == 8:
+                countO += 1
+            elif atom.GetAtomicNum() == 16:
+                countS += 1
+
+        countTuple = (countH, countC, countN, countO, countS)
+
+        if countTuple == (1, 0, 0, 0, 0):
+            self.name = "GLY"
+        elif countTuple == (3, 1, 0, 0, 0):
+            self.name = "ALA"
+        elif countTuple == (7, 3, 0, 0, 0):
+            self.name = "VAL"
+        elif countTuple == (9, 4, 0, 0, 0):
+            carbonCount = 0
+            for atom in ob.OBAtomAtomIter(self.AlphaCarbon):
                 if OBAminoAcid.IsInMolecule(atom, self.SideChain):
                     for n_atom in ob.OBAtomAtomIter(atom):
                         if n_atom.GetAtomicNum() == 6:
@@ -395,6 +543,22 @@ class OBAminoAcid():
             self.name = "ARG"
         elif countTuple == (5, 4, 2, 0, 0) or countTuple == (6, 4, 2, 0, 0):
             self.name = "HIS"
+
+
+    def __init__(self, mol):
+        self.mol = mol
+        self.NTermCap = ob.OBMol()
+        self.CTermCap = ob.OBMol()
+        self.SideChain = ob.OBMol()
+        self.name = "UNK"
+
+        self.find_termini()
+        self.find_N_cap()
+        self.find_C_cap()
+        self.find_alpha_carbon()
+        self.find_alpha_hydrogen()
+        self.find_side_chain()
+        self.get_residue_name()
 
 class OBLigand():
 
