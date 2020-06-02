@@ -408,6 +408,13 @@ class OBAminoAcidParser():
 
         return False
 
+    @staticmethod
+    def HasABondTo(atom, atNum, bondOrder):
+        for atom1 in ob.OBAtomAtomIter(atom):
+            if atom1.GetAtomicNum() == atNum and atom.GetBond(atom1).GetBondOrder() == bondOrder:
+                return True
+        return False
+
     def find_termini(self):
         for atom1 in ob.OBMolAtomIter(self.mol):
             if atom1.GetAtomicNum() == 7:
@@ -472,6 +479,11 @@ class OBAminoAcidParser():
                     if not OBAminoAcidParser.IsConnectedTo(atom, self.NTerminus) and not OBAminoAcidParser.IsConnectedTo(atom, self.CTerminus):
                         if not OBAminoAcid.Equals(atom, self.AlphaCarbon) and not OBAminoAcid.Equals(atom, self.AlphaHydrogen):
                             self.SideChain.AddAtom(atom)
+
+            if OBAminoAcidParser.IsConnectedTo(atom, self.NTerminus):
+                if atom.GetAtomicNum() == 6 and not OBAminoAcid.Equals(atom, self.AlphaCarbon):
+                    if not OBAminoAcidParser.HasABondTo(atom, 8, 2):
+                        self.SideChain.AddAtom(atom)
 
     def get_residue_name(self):
         countH = 0
